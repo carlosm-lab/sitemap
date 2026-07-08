@@ -338,11 +338,22 @@ async function saveToServer() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Error al guardar');
+
+    let payload = null;
+    try {
+      payload = await res.json();
+    } catch {
+      payload = null;
+    }
+
+    if (!res.ok) {
+      throw new Error(payload?.error || payload?.details || 'Error al guardar');
+    }
+
     showSync('ok', 'Guardado');
   } catch (err) {
     console.error(err);
-    showSync('err', 'No se pudo guardar en el servidor');
+    showSync('err', err.message || 'No se pudo guardar en el servidor');
   }
 }
 
