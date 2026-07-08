@@ -206,7 +206,7 @@
 </table>
 <div class="empty" id="emptyMsg" style="display:none;">No hay URLs que coincidan.</div>
 
-<footer>Datos guardados en el servidor (Vercel KV) — se ven igual en cualquier dispositivo.</footer>
+<footer>Datos guardados en el servidor (Neon Postgres) — se ven igual en cualquier dispositivo.</footer>
 
 <script>
 const initialUrls = [
@@ -325,7 +325,7 @@ async function loadFromServer() {
   } catch (err) {
     console.error(err);
     data = initialUrls.map(u => ({ url: u, indexed: false }));
-    showSync('err', 'No se pudo conectar al servidor. Revisa la configuración de Vercel KV.');
+    showSync('err', 'No se pudo conectar al servidor. Revisa la configuración de la base de datos en Vercel.');
   }
   render();
 }

@@ -41,7 +41,7 @@ async function getSql() {
 }
 
 async function ensureTable(sql) {
-  await sql(`
+  await sql.query(`
     CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
       key TEXT PRIMARY KEY,
       value JSONB NOT NULL
@@ -56,7 +56,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       try {
-        const rows = await sql(`SELECT value FROM ${TABLE_NAME} WHERE key = $1 LIMIT 1`, [KEY]);
+        const rows = await sql.query(`SELECT value FROM ${TABLE_NAME} WHERE key = $1 LIMIT 1`, [KEY]);
         const stored = rows?.[0]?.value;
         const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored;
         return res.status(200).json({ data: Array.isArray(parsed) ? parsed : null });
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
       }
 
       try {
-        await sql(
+        await sql.query(
           `INSERT INTO ${TABLE_NAME} (key, value) VALUES ($1, $2::jsonb)
            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
           [KEY, JSON.stringify(body)]
