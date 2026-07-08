@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tracker de Indexación - Confecciones Liss</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    margin: 0;
+    padding: 16px;
+    background: #f4f4f4;
+    color: #222;
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .sub { color: #666; font-size: 0.85rem; margin-bottom: 16px; }
+  .sync-msg { font-size: 0.8rem; margin-bottom: 12px; padding: 6px 10px; border-radius: 6px; display:none; }
+  .sync-msg.show { display: inline-block; }
+  .sync-ok { background: #e3f2e3; color: #256029; }
+  .sync-err { background: #fdecea; color: #b71c1c; }
+  .sync-loading { background: #fff3cd; color: #7a5b00; }
+
+  .stats {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .stat {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+  .stat b { display: block; font-size: 1.2rem; }
+
+  .bar-bg {
+    background: #ddd;
+    border-radius: 6px;
+    height: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .bar-fill {
+    background: #2e7d32;
+    height: 100%;
+    width: 0%;
+    transition: width .2s;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  input[type="text"], input[type="url"] {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    flex: 1;
+    min-width: 150px;
+  }
+  button {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #1565c0;
+    color: #fff;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  button.secondary { background: #555; }
+  button.danger { background: #c62828; }
+  button.ghost { background: #eee; color: #333; border: 1px solid #ccc; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button:hover:not(:disabled) { filter: brightness(1.1); }
+
+  .add-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filters label {
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    font-size: 0.85rem;
+    vertical-align: middle;
+  }
+  th {
+    background: #fafafa;
+    position: sticky;
+    top: 0;
+  }
+  tr.indexed { background: #eafaea; }
+  .url-cell {
+    word-break: break-all;
+    max-width: 380px;
+  }
+  .row-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .row-actions button { padding: 6px 8px; font-size: 0.78rem; }
+
+  .empty {
+    text-align: center;
+    padding: 24px;
+    color: #888;
+  }
+
+  footer {
+    margin-top: 20px;
+    font-size: 0.75rem;
+    color: #999;
+    text-align: center;
+  }
+
+  @media (max-width: 700px) {
+    table, thead, tbody, th, td, tr { display: block; }
+    thead { display: none; }
+    tr {
+      background: #fff;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #eee;
+    }
+    tr.indexed { background: #eafaea; }
+    td { border: none; padding: 4px 0; }
+    td.url-cell { font-weight: bold; }
+    .row-actions { margin-top: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Tracker de Indexación</h1>
+<div class="sub">confeccionesliss.com — control manual de Google Search Console (Inspección de URL)</div>
+<span id="syncMsg" class="sync-msg"></span>
+
+<div class="stats">
+  <div class="stat"><b id="statTotal">0</b>Total</div>
+  <div class="stat"><b id="statIndexed">0</b>Indexadas</div>
+  <div class="stat"><b id="statPending">0</b>Pendientes</div>
+  <div class="stat"><b id="statPct">0%</b>Progreso</div>
+</div>
+<div class="bar-bg"><div class="bar-fill" id="barFill"></div></div>
+
+<div class="add-row">
+  <input type="url" id="newUrl" placeholder="https://www.confeccionesliss.com/nueva-url">
+  <button onclick="addUrl()">+ Agregar URL</button>
+</div>
+
+<div class="toolbar">
+  <input type="text" id="searchBox" placeholder="Buscar URL...">
+  <button class="ghost" onclick="copyAllPending()">Copiar pendientes</button>
+  <button class="secondary" onclick="exportData()">Exportar backup</button>
+  <button class="secondary" onclick="document.getElementById('importFile').click()">Importar backup</button>
+  <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
+  <button class="danger" onclick="resetAll()">Reiniciar todo</button>
+</div>
+
+<div class="filters">
+  <label><input type="checkbox" id="showOnlyPending" onchange="render()"> Solo pendientes</label>
+  <label><input type="checkbox" id="showOnlyIndexed" onchange="render()"> Solo indexadas</label>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:34px;">✔</th>
+      <th>URL</th>
+      <th style="width:230px;">Acciones</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody"></tbody>
+</table>
+<div class="empty" id="emptyMsg" style="display:none;">No hay URLs que coincidan.</div>
+
+<footer>Datos guardados en el servidor (Vercel KV) — se ven igual en cualquier dispositivo.</footer>
+
+<script>
+const initialUrls = [
+"https://www.confeccionesliss.com",
+"https://www.confeccionesliss.com/catalogo",
+"https://www.confeccionesliss.com/contacto",
+"https://www.confeccionesliss.com/servicios",
+"https://www.confeccionesliss.com/links",
+"https://www.confeccionesliss.com/ayuda",
+"https://www.confeccionesliss.com/updates",
+"https://www.confeccionesliss.com/empresa",
+"https://www.confeccionesliss.com/empresa/sobre-nosotros",
+"https://www.confeccionesliss.com/empresa/filosofia",
+"https://www.confeccionesliss.com/empresa/equipo",
+"https://www.confeccionesliss.com/empresa/proceso-de-confeccion",
+"https://www.confeccionesliss.com/empresa/calidad",
+"https://www.confeccionesliss.com/empresa/certificaciones",
+"https://www.confeccionesliss.com/empresa/responsabilidad-social",
+"https://www.confeccionesliss.com/empresa/transparencia",
+"https://www.confeccionesliss.com/empresa/media-kit",
+"https://www.confeccionesliss.com/legal",
+"https://www.confeccionesliss.com/legal/privacidad",
+"https://www.confeccionesliss.com/legal/terminos",
+"https://www.confeccionesliss.com/legal/cotizaciones",
+"https://www.confeccionesliss.com/legal/envios",
+"https://www.confeccionesliss.com/legal/devoluciones",
+"https://www.confeccionesliss.com/legal/confeccion",
+"https://www.confeccionesliss.com/legal/promociones",
+"https://www.confeccionesliss.com/legal/referidos",
+"https://www.confeccionesliss.com/legal/ia",
+"https://www.confeccionesliss.com/legal/deberes",
+"https://www.confeccionesliss.com/legal/derechos",
+"https://www.confeccionesliss.com/legal/terceros",
+"https://www.confeccionesliss.com/legal/cookies",
+"https://www.confeccionesliss.com/legal/ugc",
+"https://www.confeccionesliss.com/legal/comunicaciones",
+"https://www.confeccionesliss.com/legal/accesibilidad",
+"https://www.confeccionesliss.com/legal/mayoreo",
+"https://www.confeccionesliss.com/legal/disputas",
+"https://www.confeccionesliss.com/legal/garantia",
+"https://www.confeccionesliss.com/legal/contratacion",
+"https://www.confeccionesliss.com/legal/fotografia",
+"https://www.confeccionesliss.com/servicios/bordados-personalizados",
+"https://www.confeccionesliss.com/servicios/sublimacion",
+"https://www.confeccionesliss.com/servicios/confeccion-a-medida",
+"https://www.confeccionesliss.com/servicios/mano-de-obra",
+"https://www.confeccionesliss.com/servicios/ropa-general",
+"https://www.confeccionesliss.com/catalogo/scrubs",
+"https://www.confeccionesliss.com/catalogo/escolar",
+"https://www.confeccionesliss.com/catalogo/corporativo",
+"https://www.confeccionesliss.com/catalogo/deportivo",
+"https://www.confeccionesliss.com/catalogo/accesorios",
+"https://www.confeccionesliss.com/catalogo/lenceria",
+"https://www.confeccionesliss.com/catalogo/sublimacion",
+"https://www.confeccionesliss.com/catalogo/ropa-calzado",
+"https://www.confeccionesliss.com/catalogo/tops",
+"https://www.confeccionesliss.com/catalogo/limpiapipas",
+"https://www.confeccionesliss.com/catalogo/universidades",
+"https://www.confeccionesliss.com/catalogo/universidades/univo",
+"https://www.confeccionesliss.com/catalogo/universidades/ieproes",
+"https://www.confeccionesliss.com/catalogo/universidades/ugb",
+"https://www.confeccionesliss.com/catalogo/universidades/unab",
+"https://www.confeccionesliss.com/catalogo/universidades/ues",
+"https://www.confeccionesliss.com/catalogo/universidades/uma",
+"https://www.confeccionesliss.com/catalogo/universidades/univo/uniforme-universitario-univo-medicina-interna-azul-rey",
+"https://www.confeccionesliss.com/catalogo/universidades/ieproes/uniforme-de-enfermeria-de-la-ieproes",
+"https://www.confeccionesliss.com/catalogo/universidades/uma/uniforme-de-enfermeria-de-la-uma",
+"https://www.confeccionesliss.com/catalogo/universidades/unab/uniforme-de-enfermeria-de-la-unab",
+"https://www.confeccionesliss.com/catalogo/universidades/ues/uniforme-de-enfermeria-de-la-ues",
+"https://www.confeccionesliss.com/catalogo/universidades/univo/uniforme-de-pediatria-de-la-univo",
+"https://www.confeccionesliss.com/catalogo/universidades/ugb/uniforme-de-enfermeria-de-la-ugb",
+"https://www.confeccionesliss.com/catalogo/scrubs/uniforme-de-enfermeria-estilo-jogger-de-color-cafe-unisex",
+"https://www.confeccionesliss.com/catalogo/scrubs/uniforme-de-enfermeria-estilo-jogger-de-color-negro-unisex",
+"https://www.confeccionesliss.com/catalogo/lenceria/boxer-blanco-discreto-para-caballero",
+"https://www.confeccionesliss.com/catalogo/limpiapipas/ramo-de-flores-de-limpiapipas-rosa",
+"https://www.confeccionesliss.com/catalogo/tops/crop-top-blanco-basico",
+"https://www.confeccionesliss.com/catalogo/scrubs/uniforme-de-enfermeria-estilo-cargo-comando-de-color-beige-unisex",
+"https://www.confeccionesliss.com/catalogo/corporativo/uniforme-corporativo-empresarial-a-la-medida",
+"https://www.confeccionesliss.com/catalogo/scrubs/uniforme-de-enfermeria-estilo-clasico-de-color-celeste-unisex",
+"https://www.confeccionesliss.com/catalogo/scrubs/uniforme-de-enfermeria-manga-larga-de-color-azul-marino-unisex",
+"https://www.confeccionesliss.com/catalogo/scrubs/uniforme-de-enfermeria-manga-larga-de-color-beige-unisex",
+"https://www.confeccionesliss.com/catalogo/scrubs/uniforme-de-enfermeria-blanco-con-bordado-de-corazon-unisex",
+"https://www.confeccionesliss.com/catalogo/accesorios/pin-de-psicologia-metalico-para-uniforme",
+"https://www.confeccionesliss.com/catalogo/escolar/uniforme-escolar-del-libap-san-miguel",
+"https://www.confeccionesliss.com/catalogo/deportivo/uniforme-deportivo-a-la-medida",
+"https://www.confeccionesliss.com/catalogo/scrubs/uniforme-de-enfermeria-estilo-zip-de-color-azul-marino-unisex",
+"https://www.confeccionesliss.com/catalogo/sublimacion/camisa-sublimada-rhaenyra-targaryen-diseno-premium-doble-cara",
+"https://www.confeccionesliss.com/catalogo/ropa-calzado/tenis-blancos-para-personal-de-salud"
+];
+
+let data = [];
+let saveTimer = null;
+
+function showSync(type, text) {
+  const el = document.getElementById('syncMsg');
+  el.className = 'sync-msg show sync-' + type;
+  el.textContent = text;
+  if (type === 'ok') {
+    setTimeout(() => { el.className = 'sync-msg'; }, 1500);
+  }
+}
+
+async function loadFromServer() {
+  showSync('loading', 'Cargando datos...');
+  try {
+    const res = await fetch('/api/data');
+    const json = await res.json();
+    if (json.data && Array.isArray(json.data)) {
+      data = json.data;
+    } else {
+      // Primera vez: no hay datos en el servidor, sembramos con el sitemap
+      data = initialUrls.map(u => ({ url: u, indexed: false }));
+      await saveToServer();
+    }
+    showSync('ok', 'Sincronizado');
+  } catch (err) {
+    console.error(err);
+    data = initialUrls.map(u => ({ url: u, indexed: false }));
+    showSync('err', 'No se pudo conectar al servidor. Revisa la configuración de Vercel KV.');
+  }
+  render();
+}
+
+async function saveToServer() {
+  showSync('loading', 'Guardando...');
+  try {
+    const res = await fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Error al guardar');
+    showSync('ok', 'Guardado');
+  } catch (err) {
+    console.error(err);
+    showSync('err', 'No se pudo guardar en el servidor');
+  }
+}
+
+// Guarda con un pequeño retraso para no disparar una petición por cada tecla/click
+function queueSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToServer, 400);
+}
+
+function render() {
+  const tbody = document.getElementById('tableBody');
+  const search = document.getElementById('searchBox').value.trim().toLowerCase();
+  const onlyPending = document.getElementById('showOnlyPending').checked;
+  const onlyIndexed = document.getElementById('showOnlyIndexed').checked;
+
+  let rows = data.filter(item => {
+    if (search && !item.url.toLowerCase().includes(search)) return false;
+    if (onlyPending && item.indexed) return false;
+    if (onlyIndexed && !item.indexed) return false;
+    return true;
+  });
+
+  tbody.innerHTML = '';
+  document.getElementById('emptyMsg').style.display = rows.length ? 'none' : 'block';
+
+  rows.forEach(item => {
+    const realIndex = data.indexOf(item);
+    const tr = document.createElement('tr');
+    tr.className = item.indexed ? 'indexed' : '';
+    tr.innerHTML = `
+      <td><input type="checkbox" ${item.indexed ? 'checked' : ''} onchange="toggleIndexed(${realIndex})"></td>
+      <td class="url-cell">${item.url}</td>
+      <td>
+        <div class="row-actions">
+          <button onclick="copyUrl(${realIndex}, this)">Copiar</button>
+          <button class="ghost" onclick="openUrl(${realIndex})">Abrir</button>
+          <button class="danger" onclick="deleteUrl(${realIndex})">Eliminar</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updateStats();
+}
+
+function updateStats() {
+  const total = data.length;
+  const indexed = data.filter(d => d.indexed).length;
+  const pending = total - indexed;
+  const pct = total ? Math.round((indexed/total)*100) : 0;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statIndexed').textContent = indexed;
+  document.getElementById('statPending').textContent = pending;
+  document.getElementById('statPct').textContent = pct + '%';
+  document.getElementById('barFill').style.width = pct + '%';
+}
+
+function toggleIndexed(i) {
+  data[i].indexed = !data[i].indexed;
+  render();
+  queueSave();
+}
+
+function copyUrl(i, btn) {
+  navigator.clipboard.writeText(data[i].url).then(() => {
+    const original = btn.textContent;
+    btn.textContent = '¡Copiado!';
+    setTimeout(() => btn.textContent = original, 1000);
+  });
+}
+
+function openUrl(i) {
+  window.open(data[i].url, '_blank');
+}
+
+function deleteUrl(i) {
+  if (!confirm('¿Eliminar esta URL de la lista?')) return;
+  data.splice(i, 1);
+  render();
+  queueSave();
+}
+
+function addUrl() {
+  const input = document.getElementById('newUrl');
+  let val = input.value.trim();
+  if (!val) return;
+  if (data.some(d => d.url === val)) {
+    alert('Esa URL ya está en la lista.');
+    return;
+  }
+  data.push({ url: val, indexed: false });
+  input.value = '';
+  render();
+  queueSave();
+}
+
+function copyAllPending() {
+  const pending = data.filter(d => !d.indexed).map(d => d.url).join('\n');
+  if (!pending) { alert('No hay URLs pendientes.'); return; }
+  navigator.clipboard.writeText(pending).then(() => {
+    alert('URLs pendientes copiadas al portapapeles.');
+  });
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'liss-url-tracker-backup.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!Array.isArray(imported)) throw new Error('Formato inválido');
+      data = imported;
+      render();
+      saveToServer();
+      alert('Backup importado y guardado en el servidor.');
+    } catch (err) {
+      alert('El archivo no es un backup válido.');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+async function resetAll() {
+  if (!confirm('Esto borrará todo el progreso guardado en el servidor para TODOS los dispositivos. ¿Continuar?')) return;
+  data = initialUrls.map(u => ({ url: u, indexed: false }));
+  render();
+  await saveToServer();
+}
+
+document.getElementById('searchBox').addEventListener('input', render);
+document.getElementById('newUrl').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addUrl();
+});
+
+loadFromServer();
+</script>
+
+</body>
+</html>
