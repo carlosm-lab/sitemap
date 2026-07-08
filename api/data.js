@@ -4,6 +4,22 @@ const KEY = 'liss_url_tracker_data';
 const TABLE_NAME = 'url_tracker_data';
 
 function normalizeBody(body) {
+  if (body === undefined || body === null) return null;
+
+  if (typeof body === 'string') {
+    const trimmed = body.trim();
+    if (!trimmed) return null;
+    try {
+      return normalizeBody(JSON.parse(trimmed));
+    } catch {
+      return null;
+    }
+  }
+
+  if (body instanceof Buffer) {
+    return normalizeBody(body.toString('utf8'));
+  }
+
   if (Array.isArray(body)) return body;
   if (body && typeof body === 'object' && !Array.isArray(body) && Array.isArray(body.data)) {
     return body.data;
@@ -65,7 +81,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       } catch (err) {
         console.error('Neon POST error', err);
-        return res.status(503).json({ error: 'No se pudo guardar en Neon' });
+        return res.status(503).json({ error: 'No se pudo guardar en Neon', details: err?.message || String(err) });
       }
     }
 
