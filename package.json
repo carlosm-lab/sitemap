@@ -7,6 +7,6 @@
     "node": "24.x"
   },
   "dependencies": {
-    "@vercel/kv": "^1.0.1"
+    "@neondatabase/serverless": "^1.1.0"
   }
 }
